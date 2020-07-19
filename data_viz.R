@@ -24,7 +24,7 @@ data$completion <- NA
 data$completion[data$task==1&data$platform=='Mercato'] <- rbinom(115,1,prob = .9)
 data$completion[data$task==1&data$platform=='InstaCart'] <- rbinom(115,1,prob = .89)
 data$completion[data$task==2&data$platform=='Mercato'] <- rbinom(115,1,prob = .8)
-data$completion[data$task==2&data$platform=='InstaCart'] <- rbinom(115,1,prob = .6)
+data$completion[data$task==2&data$platform=='InstaCart'] <- rbinom(115,1,prob = .58)
 
 #faking time data
 data$time <- NA
@@ -45,7 +45,7 @@ data$satisfaction[data$task==2&data$platform=='InstaCart'] <- truncnorm::rtruncn
 data$satisfaction <- as.integer(data$satisfaction*2)/2
 
 #write data
-write_csv(data,"/data.csv") #commented for safety, do not regen data for obtain same results
+#write_csv(data,"/data.csv") #commented for safety, do not regen data for obtain same results
 data <- read_csv("/data.csv")
 data <- data %>% mutate(task=as.factor(task))
 
@@ -60,7 +60,7 @@ mod.comp <- glmer(completion ~ task * platform + (1|par), binomial,data=data)
 tab_model(mod.comp)
 plot_model(mod.comp)
 plot(emmeans(mod.comp, list(pairwise ~ platform*task), adjust = "tukey"), type = "lp")
-dev.copy(png,'modcomp.png')
+dev.copy(png,'modcomp.png', width=240, height=240)
 dev.off()
 
 #time
@@ -69,12 +69,16 @@ tab_model(mod.time)
 plot_model(mod.time)
 anova(mod.time)
 plot(emmeans(mod.time, list(pairwise ~ platform*task), adjust = "tukey"))
+dev.copy(png,'modtime.png', width=240, height=240)
+dev.off()
 
 #satisfaction
 mod.satisfaction <- lmer(satisfaction ~ task * platform + (1|par), data=data)
 tab_model(mod.satisfaction)
 plot_model(mod.satisfaction)
 plot(emmeans(mod.satisfaction, list(pairwise ~ platform*task), adjust = "tukey"))
+dev.copy(png,'modsat.png', width=240, height=240)
+dev.off()
 
 
 #set values of benchmarks
@@ -120,7 +124,7 @@ df %>%
 df %>%
   filter(comp==1) %>% #only completed tasks
   group_by(group,task,tspec) %>% #group analyses broadly by product/version group and then by each task, including task time spec
-  summarise(mean=geometric.mean(time),sd = sd(time),n=n()) %>% #get mean, sd and n
+  summarise(mean=geometric.mean(time),sd = sd(time,na.rm = T),n=n()) %>% #get mean, sd and n
   mutate(se=(sd / sqrt(n))) %>% #calculate std error
   mutate(marg=se*zval) %>% #calculate margin of error
   mutate(lowerci=mean-marg) %>% #lower ci
@@ -390,9 +394,9 @@ for(i in unique(df_summarised$task)){
 #Task level plot
 df_task %>%
   mutate(vjust_value=ifelse(point_est.nps<6,-.4,1.4)) %>%
-  ggplot(aes(x=task_named, y=point_est.nps, fill=Group)) + 
-  geom_bar(aes(fill=Group),position=position_dodge(), stat="identity") +
-  
+  ggplot(aes(x=task_named, y=point_est.nps, fill=group)) + 
+  geom_bar(aes(fill=group),position=position_dodge(), stat="identity") +
+  scale_fill_manual(values=c("#007600","#FFA500")) +
   geom_errorbar(aes(ymin=lowerci.nps, ymax=upperci.nps),position=position_dodge(.9), stat="identity",color="gray",width=.2) +
   geom_text(aes(label = round(point_est.nps,0),hjust=ifelse(Group=="3.11",-1.5,1.5),vjust=vjust_value,y=0), size = 5, position = "identity") +
   coord_cartesian(ylim=c(-100,100)) +
@@ -401,7 +405,7 @@ df_task %>%
           subtitle = "Confidence Intervals at 90%") +
   #scale_y_continuous(breaks=c(-3:3)) +
   #scale_fill_manual(values=colpal)+
-  ggthemes::theme_tufte(base_family="GillSans") + 
+  ggthemes::theme_tufte(base_family="sans") + 
   theme(
     axis.text.x = element_text(size = 15),
     axis.title.x = element_blank()) #-> p.all_tasks_nps
