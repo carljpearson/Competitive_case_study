@@ -50,6 +50,63 @@ data <- read_csv("/data.csv")
 data <- data %>% mutate(task=as.factor(task))
 
 
+data$age <- truncnorm::rtruncnorm(n=115, a=50, b=85, mean=57, sd=8)
+data$gender <- rbinom(115,1,prob = .5)
+
+data2 <- data
+
+#faking confidence data
+data2$confidence <- NA
+data2$confidence[data2$task==1&data2$platform=='Mercato'] <-truncnorm::rtruncnorm(n=115, a=1, b=5, mean=4.9, sd=.5)
+data2$confidence[data2$task==1&data2$platform=='InstaCart'] <- truncnorm::rtruncnorm(n=115, a=1, b=5, mean=4.4, sd=.5)
+data2$confidence[data2$task==2&data2$platform=='Mercato'] <- truncnorm::rtruncnorm(n=115, a=1, b=5, mean=3.1, sd=.5)
+data2$confidence[data2$task==2&data2$platform=='InstaCart'] <- truncnorm::rtruncnorm(n=115, a=1, b=5, mean=3.5, sd=.5)
+
+
+#write_csv(data2,"/data2.csv") #commented for safety, do not regen data for obtain same results
+data2 <- read_csv("/data2.csv")
+data2 <- data2 %>% mutate(task=as.factor(task))
+
+
+data %>%
+  ggplot(aes(age)) +
+  geom_histogram(binwidth = 1) +
+  ggthemes::theme_tufte(base_family="sans") +
+  geom_vline(aes(xintercept=59),color="darkred",size=1.5) +
+  labs(y="Count",x='Age') +
+  theme( axis.text.x = element_text(size = 12),
+         axis.text.y = element_text(size = 12))
+
+ggsave(
+  "age.png",
+  device = "png",
+  bg =  "transparent",
+  width = 6,
+  height = 4)
+
+data %>%
+  group_by(gender) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(gender=if_else(gender==0,"Female","Male"),
+         n=n/8) %>%
+  ggplot(aes(y=count,x=gender)) +
+  geom_bar(stat="identity") +
+  ggthemes::theme_tufte(base_family="sans") +
+  labs(y="Count",x='Age') +
+  theme( axis.text.x = element_text(size = 12),
+         axis.text.y = element_text(size = 12))
+
+ggsave(
+  "age.png",
+  device = "png",
+  bg =  "transparent",
+  width = 6,
+  height = 4)
+
+
+
+
 
 
 
@@ -367,8 +424,6 @@ for(i in unique(df_summarised$task)){
     geom_text(aes(label = round(point_est.nps,0),hjust = hjust_value,vjust=vjust_value,y=0), size = 5, position = position_dodge(width=.9)) +
     coord_cartesian(ylim=c(-100,100)) +
     labs(x="", y="SUM score") +
-    ggtitle(label = paste0("Standardized Subscores for Task ",i),
-            subtitle = "Confidence Intervals at 90%") +
     ggthemes::theme_tufte(base_family="sans") + 
     scale_fill_manual(values=c("#007600","#FFA500")) +
     theme(
@@ -376,7 +431,6 @@ for(i in unique(df_summarised$task)){
       axis.text.y = element_text(size = 15),
       axis.title.x = element_text(size = 15),
       axis.title.y = element_text(size = 15),
-      title = element_text(size = 18),
       legend.position = "none") -> p.tasktemp_nps
   
   ggsave(
@@ -438,3 +492,136 @@ ggsave(
   bg =  "transparent",
   width = 7,
   height = 5)
+
+
+
+#confidence
+
+
+
+#create conf df -----
+data2 %>% 
+  group_by(platform,task) %>% #group analyses broadly by product/version group and then by each task
+  summarise(mean=mean(confidence),sd=sd(confidence),n=n()) %>% #get means, std deviation, and total observations
+  mutate(se=(sd / sqrt(n))) %>% #std error
+  mutate(marg=se*zval) %>% #margin of error based on zval
+  mutate(lowerci=mean-marg) %>% #lower ci
+  mutate(lowerci = ifelse(lowerci <= 0, 0, lowerci)) %>% #keep lower ci above 0
+  mutate(upperci=mean+marg) %>% #upper ci
+  mutate(upperci = ifelse(upperci >= 5, 5, upperci)) %>% #keep upper ci below max
+  mutate(point_est.z = pnorm((mean - 4)/sd)) %>% #z transform based on sd
+  mutate(lowerci.z=pnorm((lowerci-4)/sd)) %>%  #z transform lower ci
+  mutate(upperci.z=pnorm((upperci-4)/sd)) %>% #z transform upper ci
+  mutate(point_est.nps=(point_est.z - .5) * 200)%>% #nps-ify
+  mutate(lowerci.nps=(lowerci.z- .5 )* 200)%>% #nps-ify
+  mutate(upperci.nps=(upperci.z- .5 )* 200)%>% #nps-ify
+  mutate(Measure="conf") %>% #name measure as var
+  mutate(spec=4) %>% #define spec var for raw plots
+  rename(point.est=mean) -> df_confidence
+
+df_confidence$platform <- factor(df_confidence$platform, levels = c("Mercato","InstaCart"))  #
+
+df_confidence%>%
+  filter(task==1) %>%
+  ggplot(aes(x=platform,y=point.est,fill=platform)) +
+  geom_bar(stat = "identity")+
+  ggthemes::theme_tufte(base_family="sans") + 
+  scale_fill_manual(values=c("#007600","#FFA500")) +
+  coord_cartesian(ylim=c(1,5)) +
+  theme(
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_text(size = 15),
+    axis.title.x = element_text(size = 15),
+    axis.title.y = element_text(size = 15),
+    legend.position = "none") +
+  geom_errorbar(aes(ymin=lowerci, ymax=upperci),position=position_dodge(.9), stat="identity",color="gray",width=.2) +
+  labs(y="Confidence",x="")
+
+ggsave(
+  "conf1.png",
+  device = "png",
+  bg =  "transparent",
+  width = 4,
+  height = 5)
+
+df_confidence%>%
+  filter(task==2) %>%
+  ggplot(aes(x=platform,y=point.est,fill=platform)) +
+  geom_bar(stat = "identity")+
+  ggthemes::theme_tufte(base_family="sans") + 
+  scale_fill_manual(values=c("#007600","#FFA500")) +
+  coord_cartesian(ylim=c(1,5)) +
+  theme(
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_text(size = 15),
+    axis.title.x = element_text(size = 15),
+    axis.title.y = element_text(size = 15),
+    legend.position = "none") +
+  geom_errorbar(aes(ymin=lowerci, ymax=upperci),position=position_dodge(.9), stat="identity",color="gray",width=.2) +
+  labs(y="Confidence",x="")
+
+ggsave(
+  "conf2.png",
+  device = "png",
+  bg =  "transparent",
+  width = 4,
+  height = 5)
+
+
+#SUS
+
+
+#task and participant numbers and platform id on each row
+pars <- rep(1:115,2)
+platforms <- c(rep("Mercato",115),rep("InstaCart",115))
+#create dataframe
+data_sus <- data.frame(par,platform)
+
+
+#faking sus data
+data_sus$sus <- NA
+data_sus$sus[data_sus$platform=='Mercato'] <- truncnorm::rtruncnorm(n=115, a=1, b=100, mean=74, sd=20)
+data_sus$sus[data_sus$platform=='InstaCart'] <- truncnorm::rtruncnorm(n=115, a=1, b=100, mean=68, sd=15)
+
+#write data
+#write_csv(data_sus,"/data_sus.csv") #commented for safety, do not regen data for obtain same results
+data_sus <- read_csv("/data_sus.csv") %>% mutate(platform = factor(platform, levels = c("Mercato","InstaCart")))
+
+
+data_sus %>%
+  group_by(platform) %>%
+  summarize(
+    avg=mean(sus),
+    sd=sd(sus),
+    se=sd/sqrt(115),
+    marg=1.96 * se,
+    upperci = avg+marg,
+    lowerci=avg-marg
+  ) %>%
+  ggplot(aes(x=platform,y=avg,fill=platform)) +
+  geom_bar(stat = "identity")+
+  ggthemes::theme_tufte(base_family="sans") + 
+  scale_fill_manual(values=c("#007600","#FFA500")) +
+  coord_cartesian(ylim=c(1,100)) +
+  theme(
+    axis.text.x = element_text(size = 15),
+    axis.text.y = element_text(size = 15),
+    axis.title.x = element_text(size = 15),
+    axis.title.y = element_text(size = 15),
+    legend.position = "none") +
+  geom_errorbar(aes(ymin=lowerci, ymax=upperci),position=position_dodge(.9), stat="identity",color="gray",width=.2) +
+  labs(y="System Usability Scale score",x="")
+
+ggsave(
+  "sus.png",
+  device = "png",
+  bg =  "transparent",
+  width = 4,
+  height = 5)
+
+t.test(data_sus$sus[data_sus$platform=='Mercato'], data_sus$sus[data_sus$platform=='InstaCart'], paired = TRUE)
+
+
+
+
+
