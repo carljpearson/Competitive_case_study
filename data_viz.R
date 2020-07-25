@@ -7,6 +7,7 @@ library(sjstats)
 library(sjPlot)
 library(emmeans)
 library(psych)
+library(here)
 
 #simulate data
 
@@ -45,7 +46,7 @@ data$satisfaction[data$task==2&data$platform=='InstaCart'] <- truncnorm::rtruncn
 data$satisfaction <- as.integer(data$satisfaction*2)/2
 
 #write data
-#write_csv(data,"/data.csv") #commented for safety, do not regen data for obtain same results
+#write_csv(data,here("\\data.csv")) #commented for safety, do not regen data for obtain same results
 data <- read_csv("/data.csv")
 data <- data %>% mutate(task=as.factor(task))
 
@@ -63,16 +64,18 @@ data2$confidence[data2$task==2&data2$platform=='Mercato'] <- truncnorm::rtruncno
 data2$confidence[data2$task==2&data2$platform=='InstaCart'] <- truncnorm::rtruncnorm(n=115, a=1, b=5, mean=3.5, sd=.5)
 
 
-#write_csv(data2,"/data2.csv") #commented for safety, do not regen data for obtain same results
+#write_csv(data2,here("\\data2.csv")) #commented for safety, do not regen data for obtain same results
 data2 <- read_csv("/data2.csv")
 data2 <- data2 %>% mutate(task=as.factor(task))
 
 
 data %>%
+  group_by(age,gender,par) %>%
+  count() %>%
   ggplot(aes(age)) +
   geom_histogram(binwidth = 1) +
   ggthemes::theme_tufte(base_family="sans") +
-  geom_vline(aes(xintercept=59),color="darkred",size=1.5) +
+  geom_vline(aes(xintercept=59),color="darkgreen",size=1.5) +
   labs(y="Count",x='Age') +
   theme( axis.text.x = element_text(size = 12),
          axis.text.y = element_text(size = 12))
@@ -90,9 +93,30 @@ data %>%
   ungroup() %>%
   mutate(gender=if_else(gender==0,"Female","Male"),
          n=n/8) %>%
-  ggplot(aes(y=count,x=gender)) +
+  ggplot(aes(y=n,x=gender,fill=gender)) +
   geom_bar(stat="identity") +
   ggthemes::theme_tufte(base_family="sans") +
+  scale_fill_manual(values = c("red","blue")) +
+  labs(y="Count",x='') +
+  theme( axis.text.x = element_text(size = 12),
+         axis.text.y = element_text(size = 12),
+         legend.position = "none")
+
+ggsave(
+  "gender.png",
+  device = "png",
+  bg =  "transparent",
+  width = 3,
+  height = 4)
+
+
+data %>%
+  group_by(age,gender,par) %>%
+  count() %>%
+  ggplot(aes(age,fill=gender)) +
+  geom_histogram(binwidth = 1) +
+  ggthemes::theme_tufte(base_family="sans") +
+  geom_vline(aes(xintercept=59),color="darkgreen",size=1.5) +
   labs(y="Count",x='Age') +
   theme( axis.text.x = element_text(size = 12),
          axis.text.y = element_text(size = 12))
@@ -103,8 +127,6 @@ ggsave(
   bg =  "transparent",
   width = 6,
   height = 4)
-
-
 
 
 
@@ -581,10 +603,10 @@ data_sus <- data.frame(par,platform)
 #faking sus data
 data_sus$sus <- NA
 data_sus$sus[data_sus$platform=='Mercato'] <- truncnorm::rtruncnorm(n=115, a=1, b=100, mean=74, sd=20)
-data_sus$sus[data_sus$platform=='InstaCart'] <- truncnorm::rtruncnorm(n=115, a=1, b=100, mean=68, sd=15)
+data_sus$sus[data_sus$platform=='InstaCart'] <- truncnorm::rtruncnorm(n=115, a=1, b=100, mean=65, sd=15)
 
 #write data
-#write_csv(data_sus,"/data_sus.csv") #commented for safety, do not regen data for obtain same results
+#write_csv(data_sus,here("\\data_sus.csv")) #commented for safety, do not regen data for obtain same results
 data_sus <- read_csv("/data_sus.csv") %>% mutate(platform = factor(platform, levels = c("Mercato","InstaCart")))
 
 
@@ -620,7 +642,6 @@ ggsave(
   height = 5)
 
 t.test(data_sus$sus[data_sus$platform=='Mercato'], data_sus$sus[data_sus$platform=='InstaCart'], paired = TRUE)
-
 
 
 
